@@ -51,7 +51,33 @@
 \maketitle
 
 \begin{frame}{egg: Fast and extensible equality saturation}
-xx
+\begin{itemize}
+\item What is eqsat?
+\end{itemize}
 \end{frame}
 
+\begin{frame}{E-graphs}
+\begin{itemize}
+\item Developed for automated theorem provers.
+\item Extend union-find to represent equivalence class of \emph{expressions}.
+\item Closed under congruence.
+\end{itemize}
+\end{frame}
+
+\begin{frame{E-graphs \emph{for equality saturation}}
+\begin{itemize}
+\item Read Phase: Find all matching rewrites
+\item Write Phase: Perform rewrites
+\item Canonicalize Phase: Merge equivalent nodes.
+\end{itemize}
+\end{frame}
+
+\begin{itemize}
+\item Abstract interpretation for each equivalence class
+\end{itemize}
+
+\begin{itemize}
+\item Traditionally: E-graph always maintain congruence invariant
+\item Egg: Maintain invariant in a separate pass.
+\end{itemize}
 \end{document}

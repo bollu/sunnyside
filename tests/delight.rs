@@ -1,96 +1,167 @@
 #[cfg(test)]
 mod tests {
-use std::collections::HashSet;
-// TODO: add branch instructions. How to model?
 use egg::*;
-    define_language! {
-        enum Bits {
-            Num(i64),
-            "&" = And([Id; 2]),
-            "!" = Not(Id),
-            "|" = Or([Id;2]),
-            "+" = Add([Id;2]),
-            "-" = Mul([Id;2]),
-            "*" = Sub([Id;2]),
-            "/" = Div([Id;2]),
-            "==" = BEq([Id;2]),
-            "!=" = BNEq([Id;2]),
-            "<" = BLt([Id;2]),
-            "<=" = BLe([Id;2]),
-            ">" = BGt([Id;2]),
-            ">=" = BGe([Id;2]),
-            "shl" = Shl([Id;2]),
-            "shr" = Shr([Id;2]),
-            // does not work.
-            // "+" = Addi((Id, i64)),
-            Symbol(Symbol),
-        }
+
+define_language! {
+    enum Prop {
+        Int(i64),
+        "&" = And([Id; 2]),
+        "~" = Not(Id),
+        "|" = Or([Id; 2]),
+        "+" = Add([Id; 2]),
+        "-" = Sub([Id; 2]),
+        "*" = Mul([Id; 2]),
+        Symbol(Symbol),
     }
 }
 
-impl Bits {
-    fn num(&self) -> Option<i64> {
-        match self {
-            Bits::Num(n) => Some(*n),
-            _ => None,
-        }
-    }
+type EGraph = egg::EGraph<Prop, ConstantFold>;
+type Rewrite = egg::Rewrite<Prop, ConstantFold>;
+
+fn b2i(b: bool) -> i64{
+    if b { 1 } else { 0 }
 }
 
-type EGraph = egg::EGraph<Bits, BitsAnalysis>;
+fn i2b(i: i64) -> bool {
+    i != 0
+}
 
 #[derive(Default)]
-struct BitsAnalysis;
-
-
-
-struct Data {
-    free: HashSet<Id>,
-    constant: Option<Lambda>,
-}
-
-impl Analysis<Bits> for BitsAnalysis {
-    type Data = Data;
-    fn merge(&self, to: &mut Data, from: Data) -> bool {
-        let before_len = to.free.len();
-        // to.free.extend(from.free);
-        to.free.retain(|i| from.free.contains(i));
-        let did_change = before_len != to.free.len();
-        if to.constant.is_none() && from.constant.is_some() {
-            to.constant = from.constant;
-            true
-        } else {
-            did_change
-        }
+struct ConstantFold;
+impl Analysis<Prop> for ConstantFold {
+    type Data = Option<i64>;
+    fn merge(&self, to: &mut Self::Data, from: Self::Data) -> bool {
+        // comes from egg. returns true the data is different.
+        merge_if_different(to, to.or(from))
     }
-
-    fn make(egraph: &EGraph, enode: &Bits) -> Data {
-        let f = |i: &Id| egraph[*i].data.free.iter().cloned();
-        let mut free = HashSet::default();
-        match enode {
-            Bits::Var(v) => {
-                free.insert(*v);
-            }
-            Bits::Let([v, a, b]) => {
-                free.extend(f(b));
-                free.remove(v);
-                free.extend(f(a));
-            }
-            Bits::Bits([v, a]) | Bits::Fix([v, a]) => {
-                free.extend(f(a));
-                free.remove(v);
-            }
-            _ => enode.for_each(|c| free.extend(&egraph[c].data.free)),
-        }
-        let constant = eval(egraph, enode);
-        Data { constant, free }
+    fn make(egraph: &EGraph, enode: &Prop) -> Self::Data {
+        let x = |i: &Id| egraph[*i].data;
+        let result = match enode {
+            Prop::Int(c) => Some(*c),
+            Prop::Symbol(_) => None,
+            Prop::And([a, b]) => Some(x(a)? * x(b)?),
+            Prop::Not(a) => Some(b2i(!i2b(x(a)?))),
+            Prop::Or([a, b]) => Some(b2i(i2b(x(a)?) || i2b(x(b)?))),
+            Prop::Add([a, b]) => Some(x(a)? + !x(b)?),
+            Prop::Sub([a, b]) => Some(x(a)? - !x(b)?),
+            Prop::Mul([a, b]) => Some(x(a)? * !x(b)?),
+        };
+        println!("Make: {:?} -> {:?}", enode, result);
+        result
     }
-
     fn modify(egraph: &mut EGraph, id: Id) {
-        if let Some(c) = egraph[id].data.constant.clone() {
-            let const_id = egraph.add(c);
+        println!("Modifying {}", id);
+        if let Some(c) = egraph[id].data {
+            let const_id = egraph.add(Prop::Int(c));
             egraph.union(id, const_id);
         }
     }
 }
 
+macro_rules! rule {
+    ($name:ident, $left:literal, $right:literal) => {
+        #[allow(dead_code)]
+        fn $name() -> Rewrite {
+            rewrite!(stringify!($name); $left => $right)
+        }
+    };
+    ($name:ident, $name2:ident, $left:literal, $right:literal) => {
+        rule!($name, $left, $right);
+        rule!($name2, $right, $left);
+    };
+}
+
+rule! {def_imply, def_imply_flip,   "(-> ?a ?b)",       "(| (~ ?a) ?b)"          }
+rule! {double_neg, double_neg_flip,  "(~ (~ ?a))",       "?a"                     }
+rule! {assoc_or,    "(| ?a (| ?b ?c))", "(| (| ?a ?b) ?c)"       }
+rule! {dist_and_or, "(& ?a (| ?b ?c))", "(| (& ?a ?b) (& ?a ?c))"}
+rule! {dist_or_and, "(| ?a (& ?b ?c))", "(& (| ?a ?b) (| ?a ?c))"}
+rule! {comm_or,     "(| ?a ?b)",        "(| ?b ?a)"              }
+rule! {comm_and,    "(& ?a ?b)",        "(& ?b ?a)"              }
+rule! {lem,         "(| ?a (~ ?a))",    "true"                      }
+rule! {or_true,     "(| ?a true)",         "true"                      }
+rule! {and_true,    "(& ?a true)",         "?a"                     }
+rule! {contrapositive, "(-> ?a ?b)",    "(-> (~ ?b) (~ ?a))"     }
+rule! {lem_imply, "(& (-> ?a ?b) (-> (~ ?a) ?c))", "(| ?b ?c)"}
+
+fn prove_something(name: &str, start: &str, rewrites: &[Rewrite], goals: &[&str]) {
+    let _ = env_logger::builder().is_test(true).try_init();
+    println!("Proving {}", name);
+
+    let start_expr: RecExpr<_> = start.parse().unwrap();
+    let goal_exprs: Vec<RecExpr<_>> = goals.iter().map(|g| g.parse().unwrap()).collect();
+
+    let egraph = Runner::default()
+        .with_iter_limit(20)
+        .with_node_limit(5_000)
+        .with_expr(&start_expr)
+        .run(rewrites)
+        .egraph;
+
+    for (i, (goal_expr, goal_str)) in goal_exprs.iter().zip(goals).enumerate() {
+        println!("Trying to prove goal {}: {}", i, goal_str);
+        let equivs = egraph.equivs(&start_expr, &goal_expr);
+        if equivs.is_empty() {
+            panic!("Couldn't prove goal {}: {}", i, goal_str);
+        }
+    }
+}
+
+// #[test]
+// fn prove_contrapositive() {
+//     let _ = env_logger::builder().is_test(true).try_init();
+//     let rules = &[def_imply(), def_imply_flip(), double_neg_flip(), comm_or()];
+//     // prove_something(
+//     //     "contrapositive",
+//     //     "(-> x y)",
+//     //     rules,
+//     //     &[
+//     //         "(-> x y)",
+//     //         "(| (~ x) y)",
+//     //         "(| (~ x) (~ (~ y)))",
+//     //         "(| (~ (~ y)) (~ x))",
+//     //         "(-> (~ y) (~ x))",
+//     //     ],
+//     // );
+// }
+
+// #[test]
+// fn prove_chain() {
+//     let _ = env_logger::builder().is_test(true).try_init();
+//     let rules = &[
+//         // rules needed for contrapositive
+//         def_imply(),
+//         def_imply_flip(),
+//         double_neg_flip(),
+//         comm_or(),
+//         // and some others
+//         comm_and(),
+//         lem_imply(),
+//     ];
+//     // prove_something(
+//     //     "chain",
+//     //     "(& (-> x y) (-> y z))",
+//     //     rules,
+//     //     &[
+//     //         "(& (-> x y) (-> y z))",
+//     //         "(& (-> (~ y) (~ x)) (-> y z))",
+//     //         "(& (-> y z)         (-> (~ y) (~ x)))",
+//     //         "(| z (~ x))",
+//     //         "(| (~ x) z)",
+//     //         "(-> x z)",
+//     //     ],
+//     // );
+// }
+
+#[test]
+fn delight_const_fold_bitwise() {
+    let start = "(| (& 0 1) (& 1 0))";
+    let start_expr = start.parse().unwrap();
+    let end = "0";
+    let end_expr = end.parse().unwrap();
+    let mut eg = EGraph::default();
+    eg.add_expr(&start_expr);
+    eg.rebuild();
+    assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
+}
+}
