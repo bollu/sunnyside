@@ -41,6 +41,8 @@
     \insertframenumber/\inserttotalframenumber
 }
 
+\newcommand{\code}[1]{\mintinline{cpp}{#1}}
+
 
 \author{Siddharth Bhat}
 \date{Monday, Jan 18 2021}
@@ -57,7 +59,6 @@
 \maketitle
 
 \begin{frame}[fragile]{How do compilers work?}
-
 \begin{minted}{cpp}
 int foo() {
     int x = 1;
@@ -72,8 +73,7 @@ int foo() {
 
 \begin{minted}{cpp}
 int foo() {
-    // 1. constant propagation
-    if (1 == 1)
+    if (1 == 1) // 1. constant propagation
         printf("foo")
     else
         printf("bar")
@@ -84,8 +84,7 @@ int foo() {
 
 \begin{minted}{cpp}
 int foo() {
-    // 2. Canonicalization
-    if (true)
+    if (true) // 2. Canonicalization
         printf("foo")
     else
         printf("bar")
@@ -96,10 +95,21 @@ int foo() {
 
 \begin{minted}{cpp}
 int main() {
-    // 3. control flow simpliication
+    // 3. control flow simplification
     printf("foo")
 }
 \end{minted}
+
+\pause
+$$
+P_0
+\xrightarrow{T_1}         P_1
+\xrightarrow{T_2}         P_2
+\xrightarrow{T_3}         P_3
+\xrightarrow{T_4}         P_4
+\xrightarrow{\dots}
+\dots
+$$
 \end{frame}
 
 \begin{frame}[fragile]{In what \emph{order}?}
@@ -199,7 +209,7 @@ int bar(int x) {
 \begin{column}{.48\textwidth}
 \begin{minted}[fontsize=\footnotesize]{cpp}
 int main() {
-    // 3. control flow simpliication
+    // 3. control flow simplification
     printf("foo")
 }
 \end{minted}
@@ -209,11 +219,96 @@ int main() {
 \begin{minted}[fontsize=\footnotesize]{cpp}
 int bar(int x) {
     int y = true;
-    // 3. Control flow simpliication
+    // 3. Control flow simplification
     if (y) // Cannot simplify control flow. 
         printf("foo");
     else
         printf("bar");
+}
+\end{minted}
+\end{column}
+\end{columns}
+\end{frame}
+
+
+\begin{frame}[fragile]{In what \emph{Order}? All of them}
+\begin{columns}[T] % align columns
+\begin{column}{.48\textwidth}
+\begin{minted}[fontsize=\footnotesize]{cpp}
+int bar() {
+    int y = 42 == 42;
+    if (y)
+        printf("foo");
+    else
+        printf("bar");
+}
+\end{minted}
+\end{column}
+\pause
+\begin{column}{.48\textwidth}
+\begin{minted}[fontsize=\footnotesize]{cpp}
+int bar(int x) {
+    // 1. Constant propagation
+    int y = x == x;
+    if (y) // NOT a constant!
+        printf("foo");
+    else
+        printf("bar");
+}
+\end{minted}
+\end{column}
+\end{columns}
+\pause
+
+\begin{columns}[T] % align columns
+\begin{column}{.48\textwidth}
+\begin{minted}[fontsize=\footnotesize]{cpp}
+int bar(int x) {
+    // 2. Canonicalization
+    int y = true;
+    if (y)
+        printf("foo");
+    else
+        printf("bar");
+}
+\end{minted}
+\end{column}
+\pause
+\begin{column}{.48\textwidth}
+\begin{minted}[fontsize=\footnotesize]{cpp}
+int bar(int x) {
+    int y = true;
+    // 3. Control flow simplification
+    if (y) // Cannot simplify control flow.
+        printf("foo");
+    else
+        printf("bar");
+}
+\end{minted}
+\end{column}
+\end{columns}
+\pause
+\begin{columns}[T] % align columns
+\begin{column}{.48\textwidth}
+\begin{minted}[fontsize=\footnotesize]{cpp}
+int bar(int x) {
+    // 4. Constant propagation
+    int y = true;
+    if (true)  // IS a constant now!
+        printf("foo");
+    else
+        printf("bar");
+}
+\end{minted}
+\end{column}
+
+\pause
+\begin{column}{.48\textwidth}
+\begin{minted}[fontsize=\footnotesize]{cpp}
+int bar(int x) {
+    int y = true;
+    // 5. Control flow simplification
+    printf("foo");
 }
 \end{minted}
 \end{column}
@@ -363,51 +458,6 @@ Pass Arguments:  -tti -targetlibinfo -tbaa -scoped-noalias-aa
 \end{frame}
 
 
-\begin{frame}[fragile]{Solutions to the phase ordering problem}
-\begin{minted}[fontsize=\tiny]{text}
-bollu@cantordust:~/ > clang  -O3 -mllvm -debug-pass=Arguments ~/temp/foo.c
-\end{minted}
-\begin{minted}[fontsize=\tiny]{text}
-bollu@cantordust:~/ > clang  -O3 -mllvm -debug-pass=Arguments ~/temp/foo.c
-Pass Arguments:                                               
-             -simplifycfg                                                   
-                                                                     
-                                                                              
--simplifycfg                                                       
-                                                                   
-                                                                 
-                                                                               
-                                                                               
--simplifycfg                                                                 
-                                                              
-                                                        -simplifycfg         
-                                                                           
-                                                                        
-                                                                        
-                                                                              
-                                                                            
-                                                                       
-                                                                           
-                                                                              
-                                                               -simplifycfg
-                                                                
-                                                                     
-                                                                       
-                                                                    
-                                                                       
-                                                                     
-                                                                        
-                                                                              
-                                                                       
-                                                                       
-                                                                
-                                 -simplifycfg                                   
-                                                               
-                                                                        
-                                                                          
-...
-\end{minted}
-\end{frame}
 
 \begin{frame}[fragile]{Solutions to the phase ordering problem}
 \begin{minted}[fontsize=\tiny]{text}
@@ -455,15 +505,46 @@ Pass Arguments:
 \end{minted}
 \end{frame}
 
+\begin{frame}[fragile]{Solutions? to the phase ordering problem}
+\begin{itemize}
+\item \code{(a*2)/2} \pause
+\item \code{(a*2)/2} \pause $\xrightarrow{A}$ \code{(a << 1)/2 } \pause
+\item \code{(a*2)/2} \pause $\xrightarrow{B}$ \code{a*(2/2)} \pause $\rightarrow$ \code{a*1} \pause $\rightarrow$ \code{a} \pause
+\item Rerunning \texttt{(pass A; pass B)} multiple times won't help. transformation loses information!
+\end{itemize}
+\end{frame}
 
 \begin{frame}[fragile]{Solutions to the phase ordering problem: Equality saturation}
 \begin{itemize}
-\item Is \texttt{pass A; pass B} the same as \texttt{pass B; pass A}?
-\item The problem: \texttt{pass A } blocks \texttt{pass B} from being able to run. \pause
-\item The problem: The original program is lost. \pause
-\item The solution: Don't change, equate! \pause
-\item The solution: Keep both old and new program. \pause
+\item Is \texttt{(pass A; pass B)} is not the same as \texttt{pass B; pass A}.
+\item Solution: run all passes "in parallel", at the same time. \pause
+\item \emph{saturate} the original program with new programs
+      \emph{equivalent} to the original program.
 \end{itemize}
+
+\pause
+\begin{figure}
+\includegraphics[width=0.3\textwidth]{./transform-old.png}
+\caption{classical}
+\end{figure}
+\pause
+
+\begin{columns}
+\begin{column}{.48\textwidth}
+\begin{figure}
+\includegraphics[width=0.5\textwidth]{./transform-new.png}
+\caption{all possible transforms}
+\end{figure}
+\end{column}
+\pause
+\begin{column}{.48\textwidth}
+\begin{figure}
+\includegraphics[width=0.7\textwidth]{./transform-eqsat.png}
+\caption{equality saturation}
+\end{figure}
+\end{column}
+\end{columns}
+
 \end{frame}
 
 
@@ -471,137 +552,137 @@ Pass Arguments:
 \includegraphics[width=\textwidth]{./eg-1-1.png}
 \end{frame}
 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (2)}
-%% | \includegraphics[width=\textwidth]{./eg-1-2.png}
-%% | \end{frame}         
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (3)}
-%% | \includegraphics[width=\textwidth]{./eg-1-3.png}
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (4)}
-%% | \includegraphics[width=\textwidth]{./eg-1-4.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (5)}
-%% | \includegraphics[width=\textwidth]{./eg-1-5.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (6)}
-%% | \includegraphics[width=\textwidth]{./eg-1-6.png}
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (7)}
-%% | \includegraphics[width=\textwidth]{./eg-1-7.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{\egg: Fast and extensible equality saturation (8)}
-%% | \includegraphics[width=\textwidth]{./eg-1-8.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}{Evaluation: Herbie}
-%% | \includegraphics[width=\textwidth]{./herbie-sales-pitch.png}
-%% | \pause
-%% | 
-%% | $$
-%% | \sqrt{x+1}-\sqrt{x} =
-%% | \frac{(\sqrt{x+1}-\sqrt{x})(\sqrt{x+1}+\sqrt{x})}{\sqrt{x+1}+\sqrt{x}}
-%% | = \frac{(x+1)-x}{\sqrt{x+1}+\sqrt{x}} = \frac{1}{(\sqrt{x+1}+\sqrt{x})}
-%% | $$
-%% | \pause
-%% | \includegraphics[width=0.8\textwidth]{./herbie-speedup.png}
-%% | 
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-1.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-2.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-3.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-4.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-5.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-6.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
-%% | \includegraphics[width=\textwidth]{./rewrite-7.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Lambda calculus in \egg: Dynamic rewrites redux}
-%% | \includegraphics[width=\textwidth]{./lc-1.png}
-%% | \pause
-%% | \includegraphics[width=\textwidth]{./lc-2.png}
-%% | \pause
-%% | \includegraphics[width=\textwidth]{./lc-3.png}
-%% | \pause
-%% | \includegraphics[width=\textwidth]{./lc-4.png}
-%% | \pause
-%% | \includegraphics[width=\textwidth]{./lc-5.png}
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{Herbie: Using \egg --- Lattices}
-%% | \includegraphics[width=\textwidth]{./analysis-equivalence-classes.png}
-%% | \pause
-%% | \begin{itemize}
-%% | \item Abstract interpretation of equivalence classes.
-%% | \item For each node, provide function $\alpha: \node \rightarrow L$ (Abstraction function)
-%% | \item $(L, \cap)$ is a join-semilattice.
-%% | \item \egg provides for each equivalence class $\class \mapsto \bigcap_{\node \in \class} \alpha(\node) \in L$
-%% | \end{itemize}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Speedup over prior art: Merging}
-%% | \includegraphics[width=\textwidth]{./eg-2-1.png}
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{Speedup over prior art: Merging}
-%% | \includegraphics[width=\textwidth]{./eg-2-2.png}
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{Speedup over prior art: Merging}
-%% | \includegraphics[width=\textwidth]{./eg-2-3.png}
-%% | \end{frame}
-%% | 
-%% | \begin{frame}[fragile]{Speedup over prior art: Merging}
-%% | \includegraphics[width=\textwidth]{./eg-2-4.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Speedup over prior art: Merging}
-%% | \includegraphics[width=\textwidth]{./eg-2-5.png}
-%% | \end{frame}
-%% | 
-%% | 
-%% | \begin{frame}[fragile]{Speedup over prior art: Merging}
-%% | \includegraphics[width=\textwidth]{./eg-2-paper-snippet.png}
-%% | \end{frame}
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (2)}
+\includegraphics[width=\textwidth]{./eg-1-2.png}
+\end{frame}         
+
+
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (3)}
+\includegraphics[width=\textwidth]{./eg-1-3.png}
+\end{frame}
+
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (4)}
+\includegraphics[width=\textwidth]{./eg-1-4.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (5)}
+\includegraphics[width=\textwidth]{./eg-1-5.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (6)}
+\includegraphics[width=\textwidth]{./eg-1-6.png}
+\end{frame}
+
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (7)}
+\includegraphics[width=\textwidth]{./eg-1-7.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{\egg: Fast and extensible equality saturation (8)}
+\includegraphics[width=\textwidth]{./eg-1-8.png}
+\end{frame}
+
+
+\begin{frame}{Evaluation: Herbie}
+\includegraphics[width=\textwidth]{./herbie-sales-pitch.png}
+\pause
+
+$$
+\sqrt{x+1}-\sqrt{x} =
+\frac{(\sqrt{x+1}-\sqrt{x})(\sqrt{x+1}+\sqrt{x})}{\sqrt{x+1}+\sqrt{x}}
+= \frac{(x+1)-x}{\sqrt{x+1}+\sqrt{x}} = \frac{1}{(\sqrt{x+1}+\sqrt{x})}
+$$
+\pause
+\includegraphics[width=0.8\textwidth]{./herbie-speedup.png}
+
+\end{frame}
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-1.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-2.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-3.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-4.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-5.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-6.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Analysis and rewrite}
+\includegraphics[width=\textwidth]{./rewrite-7.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Lambda calculus in \egg: Dynamic rewrites redux}
+\includegraphics[width=\textwidth]{./lc-1.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-2.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-3.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-4.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-5.png}
+\end{frame}
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Lattices}
+\includegraphics[width=\textwidth]{./analysis-equivalence-classes.png}
+\pause
+\begin{itemize}
+\item Abstract interpretation of equivalence classes.
+\item For each node, provide function $\alpha: \node \rightarrow L$ (Abstraction function)
+\item $(L, \cap)$ is a join-semilattice.
+\item \egg provides for each equivalence class $\class \mapsto \bigcap_{\node \in \class} \alpha(\node) \in L$
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]{Speedup over prior art: Merging}
+\includegraphics[width=\textwidth]{./eg-2-1.png}
+\end{frame}
+
+\begin{frame}[fragile]{Speedup over prior art: Merging}
+\includegraphics[width=\textwidth]{./eg-2-2.png}
+\end{frame}
+
+\begin{frame}[fragile]{Speedup over prior art: Merging}
+\includegraphics[width=\textwidth]{./eg-2-3.png}
+\end{frame}
+
+\begin{frame}[fragile]{Speedup over prior art: Merging}
+\includegraphics[width=\textwidth]{./eg-2-4.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Speedup over prior art: Merging}
+\includegraphics[width=\textwidth]{./eg-2-5.png}
+\end{frame}
+
+
+\begin{frame}[fragile]{Speedup over prior art: Merging}
+\includegraphics[width=\textwidth]{./eg-2-paper-snippet.png}
+\end{frame}
 
 
 \begin{frame}[fragile]{Takeaways}
