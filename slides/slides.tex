@@ -634,28 +634,6 @@ $$
 \end{frame}
 
 
-\begin{frame}[fragile]{Lambda calculus in \egg: Dynamic rewrites redux}
-\includegraphics[width=\textwidth]{./lc-1.png}
-\pause
-\includegraphics[width=\textwidth]{./lc-2.png}
-\pause
-\includegraphics[width=\textwidth]{./lc-3.png}
-\pause
-\includegraphics[width=\textwidth]{./lc-4.png}
-\pause
-\includegraphics[width=\textwidth]{./lc-5.png}
-\end{frame}
-
-\begin{frame}[fragile]{Herbie: Using \egg --- Lattices}
-\includegraphics[width=\textwidth]{./analysis-equivalence-classes.png}
-\pause
-\begin{itemize}
-\item Abstract interpretation of equivalence classes.
-\item For each node, provide function $\alpha: \node \rightarrow L$ (Abstraction function)
-\item $(L, \cap)$ is a join-semilattice.
-\item \egg provides for each equivalence class $\class \mapsto \bigcap_{\node \in \class} \alpha(\node) \in L$
-\end{itemize}
-\end{frame}
 
 
 \begin{frame}[fragile]{Speedup over prior art: Merging}
@@ -694,6 +672,28 @@ $$
 \end{itemize}
 \end{frame}
 
+\begin{frame}[fragile]{Lambda calculus in \egg: Dynamic rewrites redux}
+\includegraphics[width=\textwidth]{./lc-1.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-2.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-3.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-4.png}
+\pause
+\includegraphics[width=\textwidth]{./lc-5.png}
+\end{frame}
+
+\begin{frame}[fragile]{Herbie: Using \egg --- Lattices}
+\includegraphics[width=\textwidth]{./analysis-equivalence-classes.png}
+\pause
+\begin{itemize}
+\item Abstract interpretation of equivalence classes.
+\item For each node, provide function $\alpha: \node \rightarrow L$ (Abstraction function)
+\item $(L, \cap)$ is a join-semilattice.
+\item \egg provides for each equivalence class $\class \mapsto \bigcap_{\node \in \class} \alpha(\node) \in L$
+\end{itemize}
+\end{frame}
 
 
 \end{document}
